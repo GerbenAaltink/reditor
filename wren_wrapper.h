@@ -13,12 +13,25 @@ const char * footer;
 rterm_t * _rterm;
 session_t * _session;
 
+void wSetCursorX(WrenVM * vm){
+  _rterm->cursor.x = (int)wrenGetSlotDouble(vm,1);
+}
+
+void wSetCursorY(WrenVM * vm){
+  _rterm->cursor.y = (int)wrenGetSlotDouble(vm,1);
+}
+
 void wInsert(WrenVM * vm){
     const char * str = wrenGetSlotString(vm,1);
     int pos = get_document_pos(_rterm);
     for(size_t i = 0; i < strlen(str); i++){
         document_insert_char(_rterm,pos,str[i]);
     }
+}
+void wExit(WrenVM * vm){
+  rterm_clear_screen();
+    printf("Exited by plugin: %s\n",wrenGetSlotString(vm,1));
+    exit(0);
 }
 void wGetDocumentPos(WrenVM * vm){
     wrenSetSlotDouble(vm,0,get_document_pos(_rterm));
@@ -55,6 +68,12 @@ WrenForeignMethodFn bindForeignMethodFn(
   {
 
       //printf("JAA OOOR %s\n",signature)
+      if(!strcmp(signature,"setCursorX(_)")){
+          return wSetCursorX;
+      }
+      if(!strcmp(signature,"setCursorY(_)")){
+          return wGetCursorY;
+      }
       if(!strcmp(signature,"getDocumentPos()")){
             return wGetDocumentPos;
         }
@@ -75,10 +94,39 @@ WrenForeignMethodFn bindForeignMethodFn(
         return wsetFooter;
         }else if(!strcmp(signature,"getLine()")){
             return wGetLine;
+        }else if(!strcmp(signature,"exit(_)")){
+          return wExit;
         }
         printf("Uncatched: %s\n",signature);
         exit(3);
     }
+
+
+void wren_interpret_string(char * str){
+   //wrenEnsureSlots(vm,100);
+   WrenInterpretResult result = wrenInterpret(vm,"main",str);
+    switch (result) {
+    case WREN_RESULT_COMPILE_ERROR:
+      { printf("Compile Error!\n"); exit(2); } break;
+    case WREN_RESULT_RUNTIME_ERROR:
+      { printf("Runtime Error!\n"); exit(2); } break;
+    case WREN_RESULT_SUCCESS:
+      { } break;
+  }
+  //wrenEnsureSlots(vm,100);
+}
+
+void wren_interpret_file(char * path){
+  size_t file_length = rfile_size(path);
+     char file_content[file_length + 1];
+     rfile_readb(path,file_content,file_length);
+    file_content[file_length] = 0;
+  
+  //_session = (session_t *)rterm->session; 
+   wren_interpret_string(file_content);
+}
+
+
 
 void wren_init(rterm_t * rterm){
     _rterm = rterm;
@@ -89,14 +137,14 @@ void wren_init(rterm_t * rterm){
    config.bindForeignMethodFn = &bindForeignMethodFn; 
   
    vm = wrenNewVM(&config);
-  
+   wrenEnsureSlots(vm,100); 
     //bindForeignMethodFn(vm,"my_module","Editor",false,"setFooter(x,y)");
     //ByteBuffer bf = wrenBindMethod(     )
     char str_class_source[1024] = {0};
  strcat(str_class_source, "var globals = {}\n");
     //strcat(str_class_source, "System.print(\"gggg\")\n");
     strcat(str_class_source, "class Editor{\n");
-    
+    //  strcat(str_class_source,"counter = 0 \n"); 
    //  strcat(str_class_source, "construct init() {} \n");
     //strcat(str_class_source, "x = 0 \n");
     //strcat(str_class_source, "y = 0 \n");
@@ -110,26 +158,24 @@ void wren_init(rterm_t * rterm){
      strcat(str_class_source, "foreign static getCursorY() \n");
      strcat(str_class_source, "foreign static getLineIndex() \n");
      strcat(str_class_source, "foreign static getDocumentPos() \n");
+     strcat(str_class_source, "foreign static setCursorX(value) \n");
+     strcat(str_class_source, "foreign static setCursorY(value) \n");
+     strcat(str_class_source, "foreign static exit(msg) \n");
+     
     strcat(str_class_source, "}\n");
-     strcat(str_class_source, "Editor.setFooter(\"Loading...\")");
+     strcat(str_class_source, "Editor.setFooter(\"Loading...\")\n");
    // strcat(str_class_source, "aaa = \"20\"\n");  
 
     printf("%s\n",str_class_source); 
     //config.bindForeighn(vm, "my_module", "Math", true, "add(_,_)");
-  wrenEnsureSlots(vm, 10);
-   WrenInterpretResult result = wrenInterpret(
-    vm,
-    "main",
-    str_class_source);
-    switch (result) {
-    case WREN_RESULT_COMPILE_ERROR:
-      { printf("Compile Error!\n"); exit(2); } break;
-    case WREN_RESULT_RUNTIME_ERROR:
-      { printf("Runtime Error!\n"); exit(2); } break;
-    case WREN_RESULT_SUCCESS:
-      { } break;
-  }
-   wrenEnsureSlots(vm, 10);
+  //wrenEnsureSlots(vm, 10);
+   wren_interpret_string(str_class_source);
+
+ wren_interpret_file("init.wren");
+  
+   //wrenEnsureSlots(vm, 10);
+
+    // wren_interpret_file("init.wren");
  
  // wrenEnsureSlots(vm, 10);
  
@@ -139,42 +185,32 @@ void wren_init(rterm_t * rterm){
     //wrenDumpValue(val);
     //printf("%s\n",val);
     //wrenCall(vm,NULL);
-   // exit(0);
+   // exit(0)yyyyyyyyy;
 //wrenCall(vm,NULL);
 }
 
+void wren_key_press(char * key){
+  char cmd[1024] = {0};
+  sprintf(cmd,"plugin.keyPress(\"%s\")",key);
+  wren_interpret_string(cmd);
+}
+
 void wren_handle(){
-     size_t file_length = rfile_size("plugin.wren");
-     char file_content[file_length + 1];
-     rfile_readb("plugin.wren",file_content,file_length);
-    file_content[file_length] = 0;
+  wren_interpret_string("plugin.tick(globals)");
+// wren_interpret_file("plugin.wren");
+  //WrenHandle * handle = wrenMakeCallHandle(vm,"Plugin.tick()");
+ //wrenCall(vm, handle);
+ // wrenCall()
+ // wren_interpret_string("tick()");
+ // wren_interpret_string("tick()");
+ 
+ //   wrenGetVariable(vm,"main","plugin",0);
   
-  //_session = (session_t *)rterm->session; 
-    WrenInterpretResult result = wrenInterpret(vm,"main",file_content);
-    switch (result) {
-    case WREN_RESULT_COMPILE_ERROR:
-      { printf("Compile Error!\n"); exit(2); } break;
-    case WREN_RESULT_RUNTIME_ERROR:
-      { printf("Runtime Error!\n"); exit(2); } break;
-    case WREN_RESULT_SUCCESS:
-      {  } break;
-  }
-  //rterm->status_text = (char *)footer;
-  return;
-   Value module_name =wrenNewString(vm, "my_module");
-   Value var_name = wrenNewString(vm, "aaa");
-   //wrenSetSlotString(vm,1,"aaaa"); 
-    Value val =  wrenGetModuleVariable(vm,module_name,var_name);
-   //  const char * v = wrenGetSlotString(vm,1);
-   int slot = 0;
-   int slots = wrenGetSlotCount(vm);
-   printf("\n\\n\n\n\n<%d>\n",slots);
-    wrenGetVariable(vm,"my_module","aaa",slot);
-    wrenSetSlotString(vm,slot,"haha");
-    const char * res = wrenGetSlotString(vm,slot);
-    printf("\n\\n\n\n\n%s\n",res);
-    //exit(0);
-   // printf("%s\n",val);
+  
+  //  WrenHandle * handle = wrenMakeCallHandle(vm, "tick()");
+  //  wrenCall(vm,handle);
+
+
 }
 
 void wren_free(){

@@ -85,57 +85,7 @@ void document_insert_char(rterm_t * rterm, int pos, char chr){
     session->document = new_document;
 }
 
-void on_key(rterm_t * rterm){
 
-    session_t * session = (session_t * )rterm->session;
-    if(!rterm->key.ctrl && !rterm->key.shift){
-    
-    }
-    if(rterm->key.c == 67 || rterm->key.c == 88){
-        session->original_x = rterm->cursor.x;
-    }
-    if(rterm->key.c == 66 || rterm->key.c == 65){
-        
-        if(session->original_x)
-        {
-            if(session->original_x >= rterm->cursor.x)
-            rterm->cursor.x = session->original_x;
-            char * data = (char *)rmalloc(10);
-            data[0] = 0;
-            //printf("%s\n",rcat(data,session->original_x));
-            //exit(0);
-        }
-        if(rterm->cursor.y >= rterm->size.ws_row - 1){
-       
-       move_document(rterm,1);
-       
-            rterm->cursor.y--; 
-        }
-        if(rterm->cursor.y < 1){
-            rterm->cursor.y = 0;
-            move_document(rterm,-1);
-        }
-    }
-    
-    int pos = get_document_pos(rterm);
-    
-   // printf("%d\n", pos);
-    if(!rterm->key.escape){
-       document_insert_char(rterm,pos,rterm->key.c);
-         if(rterm->key.c == 10){
-            rterm->cursor.x = 0;
-            rterm->cursor.y++;
-       }else{ 
-    //session->document[pos] = rterm->key.c;
-    rterm_move_cursor(rterm->cursor.y,rterm->cursor.x++);
-       }
-    }else{
-      
-    }
-    if(rterm->key.shift){
-        exit(0);
-    }
-}
 
 int get_document_pos(rterm_t *rterm){
     session_t * session = (session_t *)rterm->session;
