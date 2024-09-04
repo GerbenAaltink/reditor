@@ -13,13 +13,35 @@ const char * footer;
 rterm_t * _rterm;
 session_t * _session;
 
+void wInsert(WrenVM * vm){
+    const char * str = wrenGetSlotString(vm,1);
+    int pos = get_document_pos(_rterm);
+    for(size_t i = 0; i < strlen(str); i++){
+        document_insert_char(_rterm,pos,str[i]);
+    }
+}
+void wGetDocumentPos(WrenVM * vm){
+    wrenSetSlotDouble(vm,0,get_document_pos(_rterm));
+}
+void wGetLineIndex(WrenVM * vm){
+    wrenSetSlotDouble(vm,0,get_document_pos(_rterm));
+    
+    //wrenSetSlotDouble(vm,0,get_(_rterm));
+}
+void wGetCursorX(WrenVM *vm){
+    wrenSetSlotDouble(vm,0, (double)_rterm->cursor.x);
+}
+
+void wGetCursorY(WrenVM *vm){
+    wrenSetSlotDouble(vm,0, (double)_rterm->cursor.y);
+}
 void wGetLine(WrenVM * vm){
     wrenSetSlotString(vm, 0, _session->line);
 }
 
 void wsetFooter(WrenVM * vm){
-   footer = wrenGetSlotString(vm, 1);
-  wrenSetSlotString(vm, 0, footer); 
+   _rterm->status_text = (char *)wrenGetSlotString(vm, 1);
+
 }
 
 WrenForeignMethodFn bindForeignMethodFn(
@@ -32,17 +54,35 @@ WrenForeignMethodFn bindForeignMethodFn(
   
   {
 
-      //printf("JAA OOOR %s\n",signature);
+      //printf("JAA OOOR %s\n",signature)
+      if(!strcmp(signature,"getDocumentPos()")){
+            return wGetDocumentPos;
+        }
+        if(!strcmp(signature,"getLineIndex()")){
+            return wGetLineIndex;
+        }
+        if(!strcmp(signature,"getCursorX()")){
+            return wGetCursorX;
+        }
+        if(!strcmp(signature,"getCursorY()")){
+            return wGetCursorY;
+        }
+        if(!strcmp(signature,"insert(_)")){
+            return wInsert;
+        }else 
         if(!strcmp(signature,"setFooter(_)")){
             
         return wsetFooter;
         }else if(!strcmp(signature,"getLine()")){
             return wGetLine;
         }
+        printf("Uncatched: %s\n",signature);
+        exit(3);
     }
 
-void wren_init(){
-        
+void wren_init(rterm_t * rterm){
+    _rterm = rterm;
+    _session = (session_t *)rterm->session;
   
   wrenInitConfiguration(&config);
  config.writeFn = &writeFn;
@@ -53,17 +93,25 @@ void wren_init(){
     //bindForeignMethodFn(vm,"my_module","Editor",false,"setFooter(x,y)");
     //ByteBuffer bf = wrenBindMethod(     )
     char str_class_source[1024] = {0};
-
+ strcat(str_class_source, "var globals = {}\n");
     //strcat(str_class_source, "System.print(\"gggg\")\n");
     strcat(str_class_source, "class Editor{\n");
+    
    //  strcat(str_class_source, "construct init() {} \n");
     //strcat(str_class_source, "x = 0 \n");
     //strcat(str_class_source, "y = 0 \n");
     //strcat(str_class_source, "footer = "" \n");
     strcat(str_class_source, "foreign static getLine() \n");
      strcat(str_class_source, "foreign static setFooter(text) \n");
+     strcat(str_class_source, "foreign static insert(text) \n");
+
+     strcat(str_class_source, "foreign static getCursorX() \n");
+
+     strcat(str_class_source, "foreign static getCursorY() \n");
+     strcat(str_class_source, "foreign static getLineIndex() \n");
+     strcat(str_class_source, "foreign static getDocumentPos() \n");
     strcat(str_class_source, "}\n");
-     strcat(str_class_source, "Editor.setFooter(\"aaa\")");
+     strcat(str_class_source, "Editor.setFooter(\"Loading...\")");
    // strcat(str_class_source, "aaa = \"20\"\n");  
 
     printf("%s\n",str_class_source); 
@@ -95,10 +143,14 @@ void wren_init(){
 //wrenCall(vm,NULL);
 }
 
-void wren_handle(rterm_t * rterm){
-
-  _session = (session_t *)rterm->session; 
-    WrenInterpretResult result = wrenInterpret(vm,"main","Editor.setFooter(Editor.getLine())\n");
+void wren_handle(){
+     size_t file_length = rfile_size("plugin.wren");
+     char file_content[file_length + 1];
+     rfile_readb("plugin.wren",file_content,file_length);
+    file_content[file_length] = 0;
+  
+  //_session = (session_t *)rterm->session; 
+    WrenInterpretResult result = wrenInterpret(vm,"main",file_content);
     switch (result) {
     case WREN_RESULT_COMPILE_ERROR:
       { printf("Compile Error!\n"); exit(2); } break;
@@ -107,7 +159,7 @@ void wren_handle(rterm_t * rterm){
     case WREN_RESULT_SUCCESS:
       {  } break;
   }
-  rterm->status_text = (char *)footer;
+  //rterm->status_text = (char *)footer;
   return;
    Value module_name =wrenNewString(vm, "my_module");
    Value var_name = wrenNewString(vm, "aaa");
