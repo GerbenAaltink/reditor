@@ -7,7 +7,8 @@ typedef struct session_t {
     int first_line;
     size_t file_size;
     int original_x;   
-    char * line; 
+    char * line;
+    bool edit;
 } session_t;
 
 char * get_line_by_pos(rterm_t *rterm);
@@ -24,7 +25,7 @@ void * print_document(rterm_t * rterm)
     int line = 0;
     int line_count = 0;
     int max_lines = rterm->size.ws_row - 1;
-    for(int i = 0; i < rterm->cursor.available; i++){
+    for(int i = 0; *document; i++){
         if(!*document){
             break;
         }
@@ -78,14 +79,26 @@ void document_insert_char(rterm_t * rterm, int pos, char chr){
     new_document[pos + 1] = 0;
     session->document += pos;
     strcat(new_document,session->document);
-    //session->document += pos;
-    //strcat(new_document,(char *){chr,0});
-    //strcat(new_document, session->document);
     free(document_ptr);
     session->document = new_document;
 }
 
-
+void move_next(rterm_t * rterm){
+     if(strlen(get_line_by_pos(rterm)) == rterm->cursor.x){
+       
+        rterm->cursor.y++;
+        
+        rterm->cursor.x = 0;
+    }else{
+        rterm->cursor.x++;
+    }
+    if(rterm->cursor.y == rterm->size.ws_row){
+            move_document(rterm,1);
+           rterm->cursor.y-=2;
+            
+        }
+    //cursor_set(rterm,rterm->cursor.x,rterm->cursor.y);
+}
 
 int get_document_pos(rterm_t *rterm){
     session_t * session = (session_t *)rterm->session;

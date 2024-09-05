@@ -39,6 +39,15 @@ void wExit(WrenVM *vm)
   printf("Exited by plugin: %s\n", wrenGetSlotString(vm, 1));
   exit(0);
 }
+void wGetDocument(WrenVM * vm){
+  wrenSetSlotString(vm,0,_session->document);
+}
+void wSetDocument(WrenVM * vm){
+  const char * document = wrenGetSlotString(vm,1);
+  free(_session->document);
+  _session->document = rmalloc(strlen(document) + 1);
+  strcpy(_session->document,document);
+}
 void wGetDocumentPos(WrenVM *vm)
 {
   wrenSetSlotDouble(vm, 0, get_document_pos(_rterm));
@@ -67,6 +76,18 @@ void wsetFooter(WrenVM *vm)
 {
   _rterm->status_text = (char *)wrenGetSlotString(vm, 1);
 }
+void wSetMode(WrenVM *vm){
+  const char * mode = wrenGetSlotString(vm,1);
+  _session->edit = !strcmp(mode,"edit");
+}
+void wGetMode(WrenVM * vm){
+  const char * mode = _session->edit ? "edit" : "view";
+  wrenSetSlotString(vm,0,mode);
+}
+void wMoveNext(WrenVM *vm){
+  move_next(_rterm);
+  wrenSetSlotDouble(vm,0,(double)get_document_pos(_rterm));
+}
 
 WrenForeignMethodFn bindForeignMethodFn(
     WrenVM *vm,
@@ -76,15 +97,32 @@ WrenForeignMethodFn bindForeignMethodFn(
     const char *signature)
 
 {
-
+  if(!strcmp(signature,"moveNext()")){
+    return wMoveNext;
+  }
   // printf("JAA OOOR %s\n",signature)
+  if (!strcmp(signature, "getMode()"))
+  {
+    return wGetMode;
+  } 
+  if(!strcmp(signature,"setMode(_)")){
+    return wSetMode;
+  }
+  if (!strcmp(signature, "getDocument()"))
+  {
+    return wGetDocument;
+  } 
+  if (!strcmp(signature, "setDocument(_)"))
+  {
+    return wSetDocument;
+  } 
   if (!strcmp(signature, "setCursorX(_)"))
   {
     return wSetCursorX;
   }
   if (!strcmp(signature, "setCursorY(_)"))
   {
-    return wGetCursorY;
+    return wSetCursorY;
   }
   if (!strcmp(signature, "getDocumentPos()"))
   {
@@ -183,6 +221,11 @@ void wren_init(rterm_t *rterm)
   strcat(str_class_source, "foreign static getDocumentPos() \n");
   strcat(str_class_source, "foreign static setCursorX(value) \n");
   strcat(str_class_source, "foreign static setCursorY(value) \n");
+  strcat(str_class_source, "foreign static getMode()\n");
+  strcat(str_class_source, "foreign static getDocument() \n");
+  strcat(str_class_source, "foreign static setDocument(text) \n");
+
+  strcat(str_class_source, "foreign static moveNext() \n");
   strcat(str_class_source, "foreign static exit(msg) \n");
 
   strcat(str_class_source, "}\n");
